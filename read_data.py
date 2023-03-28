@@ -85,20 +85,22 @@ def data_segmented_noise(data, cntr):
 
     ax1.imshow(data)
 
+    row, col = np.where(data < 3.4)
+    
+    data = (data - np.min(data)) / (np.max(data) - np.min(data))
     cdata = np.copy(data)
-    row, col = np.where(cdata < 3.4)
     cdata[row, col] = -1
     
     ax2 = fig.add_subplot(1,4,2)
     ax2.imshow(cdata)
-
     ax3 = fig.add_subplot(1,4,3)
     ax3.imshow(cntr)
 
     noise_fact = 0.4
-
-    noise_img = data + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=data.shape)
+    noise_img  = data + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=data.shape)
     cdata[row,col] = noise_img[row,col]
+
+    cdata = np.clip(cdata, 0., 1.)
 
     ax4 = fig.add_subplot(1,4,4)
     ax4.imshow(cdata)
@@ -234,7 +236,7 @@ def main():
     data = f.get('data')
 
     data_position_noise(data[idx], img_pos[idx])
-    # data_segmented_noise(data[idx], cntr[idx])
+    data_segmented_noise(data[idx], cntr[idx])
 
     if _disp: visualise_data(data[idx])
 
