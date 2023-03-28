@@ -28,18 +28,83 @@ def setup_labels(data_list, is_valid):
 
     return np.asarray(cdata)
 
-def setup_depth_map(data_list, is_valid):
+def setup_depth_map(data_list, cntr, is_valid):
     cdata = []
 
     cw = 56
     ch = 48
     for i, img in enumerate(data_list):
         if is_valid[i] == 0: continue
-        cimg = np.asarray(img[ch:, int((w/2)-cw):int((w/2)+cw)])
+        nimg = data_segmented_noise(img, cntr)
+        cimg = np.asarray(nimg[ch:, int((w/2)-cw):int((w/2)+cw)])
         norm = (cimg - np.min(cimg)) / (np.max(cimg) - np.min(cimg))
         cdata.append(norm)
     
     return np.asarray(cdata)
+
+def data_position_noise(data, joints):
+    fig = plt.figure()
+
+    ax1 = fig.add_subplot(1,3,1)
+    ax1.imshow(data)
+
+    ax2 = fig.add_subplot(1,3,2)
+    ax2.imshow(data)
+
+    print(joints)
+
+    for j in joints:
+        ax2.scatter(x=j[0], y=j[1], c='r', s=40)
+
+    ax3 = fig.add_subplot(1,3,3)
+    cdata = np.copy(data)
+    for j in joints:
+        for dx in range(j[0]-10, j[0]+10):
+            for dy in range(j[1]-10, j[1]+10):
+                if dx < 0 or dy < 0 or dx >= w or dy >= h: continue
+                data[dy][dx] = -1
+
+    row, col = np.where(data == -1)
+    noise_fact = 0.4
+
+    noise_img = cdata + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=data.shape)
+    cdata[row,col] = noise_img[row,col]
+
+    ax3.imshow(cdata)
+
+    plt.show()
+
+def data_segmented_noise(data, cntr):
+    cw = 56
+    ch = 48
+    data = np.asarray(data[ch:, int((w/2)-cw):int((w/2)+cw)])
+    cntr = np.asarray(cntr[ch:, int((w/2)-cw):int((w/2)+cw)])
+    
+    fig = plt.figure()
+    ax1 = fig.add_subplot(1,4,1)
+
+    ax1.imshow(data)
+
+    cdata = np.copy(data)
+    row, col = np.where(cdata < 3.4)
+    cdata[row, col] = -1
+    
+    ax2 = fig.add_subplot(1,4,2)
+    ax2.imshow(cdata)
+
+    ax3 = fig.add_subplot(1,4,3)
+    ax3.imshow(cntr)
+
+    noise_fact = 0.4
+
+    noise_img = data + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=data.shape)
+    cdata[row,col] = noise_img[row,col]
+
+    ax4 = fig.add_subplot(1,4,4)
+    ax4.imshow(cdata)
+
+    plt.show()
+
 
 def prepare_model_data(type):
     assert type == 'train' or type == 'test'
@@ -51,7 +116,8 @@ def prepare_model_data(type):
 
     f = h5py.File(data_h5 + 'ITOP_side_' + type + '_depth_map.h5', 'r')
     depth_map = np.asarray(f.get('data'))
-    depth_map = setup_depth_map(depth_map, is_valid)
+    cntr = np.asarray(f.get('segmentation'))
+    depth_map = setup_depth_map(depth_map, cntr, is_valid)
 
     return label, depth_map
 
@@ -162,8 +228,13 @@ def main():
         visualise_label(pos[idx], False)
         visualise_label(pos[idx], True)
 
+    cntr = f.get('segmentation')
+    img_pos = f.get('image_coordinates')
     f = h5py.File(data_h5 + 'ITOP_side_test_depth_map.h5', 'r')
     data = f.get('data')
+
+    data_position_noise(data[idx], img_pos[idx])
+    # data_segmented_noise(data[idx], cntr[idx])
 
     if _disp: visualise_data(data[idx])
 
