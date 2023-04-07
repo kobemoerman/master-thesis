@@ -17,19 +17,20 @@ def normalize_labels(data):
 
     return (data - data_mean) / data_std
 
-def normalize_data(data):
-    return cv2.normalize(np.float32(data), None, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+def normalize_data(id, data):
+    norm = cv2.normalize(np.float32(data), None, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+    return dict(zip(id, norm))
 
-def crop_data(data, id):
+def crop_data(data):
     cw = 56
     ch = 48
 
-    cdict = {}
-    for key, img in zip(id, data):
+    cdata = []
+    for img in data:
         cimg = np.asarray(img[ch:, int((w/2)-cw):int((w/2)+cw)])
-        cdict[key] = cv2.resize(np.float32(cimg), (56, 96))
+        cdata.append(cv2.resize(np.float32(cimg), (64, 96)))
 
-    return cdict
+    return cdata
 
 
 def prepare_model_data(type):
@@ -49,8 +50,8 @@ def prepare_model_data(type):
     norm_pos = normalize_labels(pos)
     labels = dict(zip(l_id, norm_pos))
 
-    data = normalize_data(data)
-    images = crop_data(data, d_id)
+    data = crop_data(data)
+    images = normalize_data(d_id, data)
 
     x, y = [], []
     for key in images:
@@ -63,7 +64,7 @@ def save_modified_data():
     train_label, train_data = prepare_model_data('train')
     test_label, test_data = prepare_model_data('test')
 
-    with h5py.File('./data/norm_dataset_itop.hdf5', 'w') as hf:
+    with h5py.File('./data/resize_dataset_itop.hdf5', 'w') as hf:
         hf.create_dataset('x_train', data=train_data, shape=train_data.shape, compression='gzip', chunks=True)
         hf.create_dataset('y_train', data=train_label, shape=train_label.shape, compression='gzip', chunks=True)
         hf.create_dataset('x_test', data=test_data, shape=test_data.shape, compression='gzip', chunks=True)
@@ -104,8 +105,8 @@ def main():
     f = h5py.File('./data/ITOP_side_test_depth_map.h5', 'r')
     id, data = np.asarray(f.get('id')), np.asarray(f.get('data'))
 
-    data = normalize_data(data[is_valid])
-    dimg = crop_data(data, id[is_valid])
+    data = crop_data(data[is_valid])
+    dimg = normalize_data(id[is_valid], data)
 
     if _disp: visualise_data(data[idx])
     if _export: save_modified_data()
