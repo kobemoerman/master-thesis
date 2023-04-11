@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 h, w = (240, 320)
 
 def visualise_data(data):
-    
     cw = 56
     ch = 48
     data = np.asarray(data[ch:, int((w/2)-cw):int((w/2)+cw)], dtype=np.float32)

@@ -11,26 +11,37 @@ bh, bw = (192, 112)
 h, w = (240, 320)
 
 def normalize_labels(data):
-    data = np.array(data).astype(np.float32).reshape((-1, 45))
-    data_mean = np.expand_dims(np.mean(data, axis=-1), axis=-1)
-    data_std  = np.expand_dims(np.std(data, axis=-1), axis=-1)
+    # data = np.array(data).astype(np.float32).reshape((-1, 45))
+    # data_mean = np.expand_dims(np.mean(data, axis=-1), axis=-1)
+    # data_std  = np.expand_dims(np.std(data, axis=-1), axis=-1)
 
-    return (data - data_mean) / data_std
+    # return (data - data_mean) / data_std
+    label = []
+    for d in data:
+        norm = (d / np.linalg.norm(d)).flatten().astype(np.float32)
+        label.append(norm)
+    return np.asarray(label, dtype=np.float32)
 
 def normalize_data(id, data):
-    norm = cv2.normalize(np.float32(data), None, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-    return dict(zip(id, norm))
-
-def crop_data(data):
     cw = 56
     ch = 48
 
-    cdata = []
-    for img in data:
+    cdict = {}
+    for key, img in zip(id, data):
         cimg = np.asarray(img[ch:, int((w/2)-cw):int((w/2)+cw)])
-        cdata.append(cv2.resize(np.float32(cimg), (64, 96)))
+        cimg = cv2.resize(np.float32(cimg), (64, 96))
+        
+        norm = (cimg - np.min(cimg)) / (np.max(cimg) - np.min(cimg))
+        
+        noise_fact = 0.2
+        row, col = np.where(cimg < 3.4)
+        noise_img = norm + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=norm.shape)
+        norm[row,col] = noise_img[row,col]
+        norm = np.clip(norm, 0., 1.)
 
-    return cdata
+        cdict[key] = norm
+
+    return cdict
 
 
 def prepare_model_data(type):
@@ -49,8 +60,8 @@ def prepare_model_data(type):
 
     norm_pos = normalize_labels(pos)
     labels = dict(zip(l_id, norm_pos))
+    print(norm_pos.shape)
 
-    data = crop_data(data)
     images = normalize_data(d_id, data)
 
     x, y = [], []
@@ -64,7 +75,7 @@ def save_modified_data():
     train_label, train_data = prepare_model_data('train')
     test_label, test_data = prepare_model_data('test')
 
-    with h5py.File('./data/resize_dataset_itop.hdf5', 'w') as hf:
+    with h5py.File('./data/v_resize_dataset_itop.hdf5', 'w') as hf:
         hf.create_dataset('x_train', data=train_data, shape=train_data.shape, compression='gzip', chunks=True)
         hf.create_dataset('y_train', data=train_label, shape=train_label.shape, compression='gzip', chunks=True)
         hf.create_dataset('x_test', data=test_data, shape=test_data.shape, compression='gzip', chunks=True)
@@ -105,7 +116,7 @@ def main():
     f = h5py.File('./data/ITOP_side_test_depth_map.h5', 'r')
     id, data = np.asarray(f.get('id')), np.asarray(f.get('data'))
 
-    data = crop_data(data[is_valid])
+    data = data[is_valid]
     dimg = normalize_data(id[is_valid], data)
 
     if _disp: visualise_data(data[idx])
