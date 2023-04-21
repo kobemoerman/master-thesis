@@ -1,7 +1,9 @@
 import cv2
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 
+bh, bw = (192, 112)
 h, w = (240, 320)
 
 def visualise_data(data):
@@ -55,64 +57,86 @@ def visualise_label(data):
     plt.show()
 
 def data_position_noise(data, joints):
-    fig = plt.figure()
+    # get 4 random indices
+    sample = random.sample(range(data.shape[0]), 4)
 
-    ax1 = fig.add_subplot(1,3,1)
-    ax1.imshow(data)
+    # joint colors
+    colors = ['c', 'r', 'b', 'orange', 'b', 'orange', 'b', 'orange', 'm', 'purple', 'm', 'purple', 'm', 'purple', 'm']
 
-    ax2 = fig.add_subplot(1,3,2)
-    ax2.imshow(data)
+    fig = plt.figure(figsize=(8, 12))
+    fig.tight_layout()
+    for i in range(len(sample)):
+        # resize data
+        joint = joints[sample[i]]
+        img   = data[sample[i]]
 
-    for j in joints:
-        ax2.scatter(x=j[0], y=j[1], c='r', s=40)
+        # normalise data
+        img  = (img - np.min(img)) / (np.max(img) - np.min(img))
 
-    ax3 = fig.add_subplot(1,3,3)
-    cdata = np.copy(data)
-    for j in joints:
-        for dx in range(j[0]-10, j[0]+10):
-            for dy in range(j[1]-10, j[1]+10):
-                if dx < 0 or dy < 0 or dx >= w or dy >= h: continue
-                data[dy][dx] = -1
+        # plot image
+        ax = fig.add_subplot(2, 4, i+1)
+        ax.imshow(img)
+        # plot joints
+        for c, j in enumerate(joint):
+            ax.scatter(x=j[0], y=j[1], c=colors[c], s=5)
+        ax.axis('off')
 
-    row, col = np.where(data == -1)
-    noise_fact = 0.4
+        cimg = np.copy(img)
 
-    noise_img = cdata + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=data.shape)
-    cdata[row,col] = noise_img[row,col]
+        # set region around joint locations
+        for j in joint:
+            for dx in range(int(j[0])-10, int(j[0])+10):
+                for dy in range(int(j[1])-10, int(j[1])+10):
+                    if dx < 0 or dy < 0 or dx >= w or dy >= h: continue
+                    img[dy][dx] = -1
+        row, col = np.where(img == -1)
 
-    ax3.imshow(cdata)
+        noise_fact = 0.3
+        noise_img = cimg + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=cimg.shape)
+        cimg[row, col] = noise_img[row,col]
+        cimg = np.clip(cimg, 0., 1.)
+
+        # plot noise
+        ax = fig.add_subplot(1, 4, i+1)
+        ax.imshow(cimg)
+        ax.axis('off')
 
     plt.show()
 
-def data_segmented_noise(data, cntr):
-    cw = 56
-    ch = 48
-    data = np.asarray(data[ch:, int((w/2)-cw):int((w/2)+cw)])
-    cntr = np.asarray(cntr[ch:, int((w/2)-cw):int((w/2)+cw)])
+def data_segmented_noise(data):
+    # get 4 random indices
+    sample = random.sample(range(data.shape[0]), 4)
+
+    fig = plt.figure(figsize=(8, 12))
+    fig.tight_layout()
+    for i in range(len(sample)):
+        # resize data
+        cw = 56
+        ch = 48
+        img = data[sample[i]]
+        img = np.asarray(img[ch:, int((w/2)-cw):int((w/2)+cw)])
+
+        # segment the body
+        row, col = np.where(img < 3.4)
+
+        # normalise data
+        img  = (img - np.min(img)) / (np.max(img) - np.min(img))
+        cimg = np.copy(img)
+
+        # add noise to data
+        noise_fact = 0.3
+        noise_img  = img + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=img.shape)
+        cimg[row,col] = noise_img[row,col]
+        cimg = np.clip(cimg, 0., 1.)
+
+        # plot data
+        ax = fig.add_subplot(2, 4, i+1)
+        ax.imshow(img)
+        ax.axis('off')
+        ax = fig.add_subplot(1, 4, i+1)
+        ax.imshow(cimg)
+        ax.axis('off')
+
     
-    fig = plt.figure()
-    ax1 = fig.add_subplot(1,4,1)
-
-    ax1.imshow(data)
-
-    row, col = np.where(data < 3.4)
-    
-    data = (data - np.min(data)) / (np.max(data) - np.min(data))
-    cdata = np.copy(data)
-    cdata[row, col] = -1
-    
-    ax2 = fig.add_subplot(1,4,2)
-    ax2.imshow(cdata)
-    ax3 = fig.add_subplot(1,4,3)
-    ax3.imshow(cntr)
-
-    noise_fact = 0.4
-    noise_img  = data + noise_fact * np.random.normal(loc=0.0, scale=1.0, size=data.shape)
-    cdata[row,col] = noise_img[row,col]
-
-    cdata = np.clip(cdata, 0., 1.)
-
-    ax4 = fig.add_subplot(1,4,4)
-    ax4.imshow(cdata)
-
+    plt.savefig('noise')
     plt.show()
